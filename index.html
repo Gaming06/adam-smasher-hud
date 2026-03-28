@@ -1,0 +1,684 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>ADAM SMASHER — NEURAL HUD</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;600;700;900&display=swap');
+
+*{margin:0;padding:0;box-sizing:border-box;}
+
+:root{
+  --red:#ff1a1a;
+  --red2:#cc0000;
+  --red-glow:rgba(255,26,26,0.25);
+  --orange:#ff6600;
+  --cyan:#00e5ff;
+  --cyan2:#007a8a;
+  --yellow:#ffd600;
+  --purple:#aa00ff;
+  --purple2:#550088;
+  --green:#00ff88;
+  --dark:#07070f;
+  --dark2:#0e0e1a;
+  --dark3:#141420;
+  --border:#1e1e30;
+  --border2:#2a2a40;
+  --text:#a0a0c0;
+  --text2:#606080;
+}
+
+html,body{
+  width:100%; min-height:100vh;
+  background:var(--dark);
+  font-family:'Share Tech Mono',monospace;
+  color:var(--text);
+  overflow-x:hidden;
+}
+
+/* SCANLINES */
+body::before{
+  content:'';
+  position:fixed;inset:0;
+  background:repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(0,0,0,0.06) 3px,rgba(0,0,0,0.06) 4px);
+  pointer-events:none;z-index:9998;
+}
+
+/* NOISE OVERLAY */
+body::after{
+  content:'';
+  position:fixed;inset:0;
+  background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+  pointer-events:none;z-index:9997;opacity:0.4;
+}
+
+.wrap{
+  max-width:980px;
+  margin:0 auto;
+  padding:18px 16px 28px;
+  position:relative;
+  z-index:1;
+}
+
+/* ─── TICKER ─── */
+.ticker-outer{
+  overflow:hidden;
+  border-top:1px solid #ff1a1a22;
+  border-bottom:1px solid #ff1a1a22;
+  padding:4px 0;
+  margin-bottom:16px;
+  background:rgba(255,26,26,0.03);
+}
+.ticker-inner{
+  display:inline-block;
+  white-space:nowrap;
+  font-size:8px;
+  color:#ff1a1a55;
+  letter-spacing:2px;
+  animation:tick 28s linear infinite;
+}
+@keyframes tick{from{transform:translateX(100vw)}to{transform:translateX(-100%)}}
+
+/* ─── TOP HEADER ─── */
+.hud-header{
+  display:grid;
+  grid-template-columns:1fr auto 1fr;
+  align-items:center;
+  gap:14px;
+  margin-bottom:16px;
+}
+
+.hdr-left,.hdr-right{
+  display:flex;flex-direction:column;gap:3px;
+}
+.hdr-right{align-items:flex-end;}
+
+.hdr-micro{
+  font-size:8px;color:var(--text2);letter-spacing:3px;text-transform:uppercase;
+}
+.hdr-val{
+  font-family:'Orbitron',monospace;
+  font-size:11px;letter-spacing:2px;
+}
+
+.boss-title-wrap{text-align:center;}
+.boss-name{
+  font-family:'Orbitron',monospace;
+  font-size:24px;font-weight:900;
+  color:var(--red);
+  letter-spacing:5px;
+  text-transform:uppercase;
+  text-shadow:0 0 30px rgba(255,26,26,0.5),0 0 60px rgba(255,26,26,0.2);
+  animation:nameflicker 5s infinite;
+}
+@keyframes nameflicker{
+  0%,93%,100%{opacity:1;}
+  94%{opacity:0.6;}
+  95%{opacity:1;}
+  97%{opacity:0.4;}
+  98%{opacity:1;}
+}
+.boss-sub{
+  font-size:9px;color:var(--cyan2);letter-spacing:5px;margin-top:3px;
+}
+
+/* RED DIVIDER LINE */
+.red-line{
+  height:1px;
+  background:linear-gradient(90deg,transparent,var(--red),var(--orange),var(--red),transparent);
+  margin-bottom:14px;
+  opacity:0.5;
+}
+
+/* ─── HP + MANA BLOCK ─── */
+.bars-row{
+  display:grid;grid-template-columns:1fr 1fr;
+  gap:10px;margin-bottom:14px;
+}
+
+.bar-panel{
+  background:var(--dark2);
+  border:1px solid var(--border2);
+  padding:10px 12px;
+  position:relative;
+  overflow:hidden;
+}
+.bar-panel::before{
+  content:'';position:absolute;top:0;left:0;width:3px;height:100%;
+}
+.bar-panel.hp-panel::before{background:var(--red);}
+.bar-panel.rage-panel::before{background:var(--yellow);}
+
+.bar-top{
+  display:flex;justify-content:space-between;align-items:center;
+  margin-bottom:7px;
+}
+.bar-lbl{font-size:9px;color:var(--text2);letter-spacing:2px;}
+.bar-num{
+  font-family:'Orbitron',monospace;font-size:13px;font-weight:700;
+}
+.bar-num.hp{color:var(--red);}
+.bar-num.rage{color:var(--yellow);}
+
+.bar-track{
+  height:7px;background:#0a0a14;
+  border:1px solid var(--border);
+  position:relative;overflow:hidden;
+}
+.bar-fill{
+  height:100%;position:relative;
+  transition:width 0.6s cubic-bezier(.4,0,.2,1);
+}
+.bar-fill.hp-fill{
+  background:linear-gradient(90deg,#5a0000,var(--red));
+}
+.bar-fill.rage-fill{
+  background:linear-gradient(90deg,#7a5000,var(--yellow));
+  animation:ragepulse 2s infinite alternate;
+}
+@keyframes ragepulse{from{filter:brightness(0.85);}to{filter:brightness(1.1);}}
+.bar-fill::after{
+  content:'';position:absolute;right:0;top:0;height:100%;width:2px;
+  background:#fff;opacity:0.5;animation:scanpip 1s infinite;
+}
+@keyframes scanpip{0%,100%{opacity:0.5;}50%{opacity:0.1;}}
+
+.bar-note{font-size:8px;color:var(--text2);margin-top:5px;letter-spacing:1px;}
+.overheal-badge{
+  font-size:8px;padding:1px 6px;
+  background:rgba(0,229,255,0.08);
+  border:1px solid var(--cyan2);
+  color:var(--cyan);letter-spacing:1px;
+  margin-left:6px;
+}
+
+/* ─── SECTION HEADER ─── */
+.sec-hdr{
+  display:flex;align-items:center;gap:10px;margin-bottom:10px;
+}
+.sec-title{
+  font-family:'Orbitron',monospace;
+  font-size:10px;letter-spacing:3px;white-space:nowrap;
+}
+.sec-line{flex:1;height:1px;}
+.sec-badge{
+  font-family:'Orbitron',monospace;
+  font-size:8px;padding:2px 9px;letter-spacing:1px;
+  color:var(--dark);
+}
+
+/* ─── FRAMED PANEL ─── */
+.framed{
+  position:relative;
+  border:1px solid var(--border2);
+  background:var(--dark3);
+  padding:14px 14px 12px;
+  margin-bottom:12px;
+}
+.corner{
+  position:absolute;width:12px;height:12px;pointer-events:none;
+}
+.corner.tl{top:-1px;left:-1px;border-top:2px solid var(--red);border-left:2px solid var(--red);}
+.corner.tr{top:-1px;right:-1px;border-top:2px solid var(--red);border-right:2px solid var(--red);}
+.corner.bl{bottom:-1px;left:-1px;border-bottom:2px solid var(--red);border-left:2px solid var(--red);}
+.corner.br{bottom:-1px;right:-1px;border-bottom:2px solid var(--red);border-right:2px solid var(--red);}
+
+/* ─── ENEMY GRID ─── */
+.enemy-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(270px,1fr));
+  gap:8px;
+  margin-bottom:12px;
+}
+
+/* ─── ENEMY CARD ─── */
+.ecard{
+  background:var(--dark2);
+  border:1px solid var(--border2);
+  border-top:2px solid;
+  padding:10px 11px 8px;
+  position:relative;
+  overflow:hidden;
+  transition:background 0.2s;
+  animation:cardin 0.4s ease both;
+}
+@keyframes cardin{from{opacity:0;transform:translateY(-6px);}to{opacity:1;transform:none;}}
+
+.ecard::after{
+  content:'';position:absolute;top:3px;right:3px;
+  width:7px;height:7px;
+  border-top:1px solid var(--red);border-right:1px solid var(--red);
+  opacity:0.4;
+}
+.ecard:hover{background:#121220;}
+.ecard:hover .edot{background:var(--yellow)!important;}
+
+/* class border colors */
+.ecard.heavy{border-top-color:#ff7700;}
+.ecard.soldier{border-top-color:#dd2200;}
+.ecard.scout{border-top-color:#0099ff;}
+.ecard.medic{border-top-color:#dddddd;}
+.ecard.demo{border-top-color:#7744dd;}
+.ecard.engineer{border-top-color:#cc9900;}
+.ecard.pyro{border-top-color:#ff5500;}
+.ecard.sniper{border-top-color:#88cc00;}
+.ecard.spy{border-top-color:#aa00ff;}
+
+.ecard-top{
+  display:flex;align-items:center;gap:5px;margin-bottom:8px;
+}
+.ecls{
+  font-size:8px;color:var(--text2);letter-spacing:1px;
+  background:rgba(255,255,255,0.04);
+  padding:1px 5px;border:1px solid var(--border2);
+}
+.ename{
+  font-family:'Orbitron',monospace;
+  font-size:10px;font-weight:700;color:#dde;
+  letter-spacing:1px;flex:1;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.edot{
+  width:5px;height:5px;border-radius:50%;
+  background:var(--red);
+  animation:blink 1.4s infinite;flex-shrink:0;
+}
+@keyframes blink{0%,100%{opacity:1;}50%{opacity:0.15;}}
+
+/* STAT ROWS */
+.stat-row{
+  display:flex;align-items:center;gap:6px;margin-bottom:4px;
+}
+.slbl{
+  font-size:8px;color:var(--cyan2);letter-spacing:1px;
+  width:32px;flex-shrink:0;
+}
+.mtrack{
+  flex:1;height:4px;
+  background:#0a0a16;border:1px solid #1a1a28;
+  overflow:hidden;
+}
+.mfill{height:100%;transition:width 0.5s;}
+.mfill.hp{background:linear-gradient(90deg,#5a0000,#ff3333);}
+.mfill.ammo{background:linear-gradient(90deg,#005a1a,#00dd55);}
+.snum{
+  font-size:9px;color:var(--text);
+  width:58px;text-align:right;flex-shrink:0;
+}
+.snum.low{color:var(--red);animation:blink 0.8s infinite;}
+
+/* CARD FOOTER */
+.ecard-foot{
+  display:flex;align-items:center;justify-content:space-between;
+  margin-top:6px;padding-top:5px;
+  border-top:1px solid var(--border);
+}
+.edist{font-size:8px;color:#505070;letter-spacing:1px;}
+.ethreat{
+  font-size:7px;letter-spacing:1px;padding:1px 6px;
+}
+.ethreat.high{color:var(--red);border:1px solid var(--red2);background:rgba(255,0,0,0.08);}
+.ethreat.mid{color:var(--yellow);border:1px solid #7a6000;background:rgba(255,214,0,0.06);}
+.ethreat.low{color:#408040;border:1px solid #204020;background:rgba(0,255,0,0.05);}
+.ethreat.uber{color:var(--cyan);border:1px solid var(--cyan2);background:rgba(0,229,255,0.08);}
+
+/* OVERHEAL tag inline */
+.uber-tag{
+  font-size:7px;padding:1px 5px;
+  background:rgba(0,229,255,0.07);
+  border:1px solid var(--cyan2);
+  color:var(--cyan);letter-spacing:1px;
+  margin-left:3px;flex-shrink:0;
+}
+
+/* ─── SPY / CLOAKED SECTION ─── */
+.spy-panel{
+  background:#0c0c18;
+  border:1px solid #2a0045;
+  border-left:3px solid var(--purple);
+  padding:10px 13px;
+  margin-top:4px;
+}
+.spy-hdr{
+  display:flex;align-items:center;gap:8px;margin-bottom:8px;
+}
+.spy-diamond{
+  width:8px;height:8px;
+  border:1px solid var(--purple);
+  transform:rotate(45deg);flex-shrink:0;
+  animation:diamondpulse 2s infinite alternate;
+}
+@keyframes diamondpulse{from{box-shadow:0 0 0 var(--purple2);}to{box-shadow:0 0 6px var(--purple2);}}
+.spy-title{
+  font-family:'Orbitron',monospace;
+  font-size:9px;color:var(--purple);letter-spacing:3px;
+}
+.spy-grid{display:flex;gap:6px;flex-wrap:wrap;}
+.spy-chip{
+  padding:4px 10px;font-size:8px;letter-spacing:1px;
+  background:#150022;border:1px dashed #440066;color:#7733aa;
+  animation:spychip 3s infinite alternate;
+}
+@keyframes spychip{0%{opacity:0.6;}100%{opacity:1;}}
+.spy-note{
+  font-size:8px;color:#440066;letter-spacing:1px;
+  margin-top:7px;
+}
+
+/* ─── BOTTOM STATUS BAR ─── */
+.status-bar{
+  display:flex;gap:6px;margin-top:10px;flex-wrap:wrap;
+}
+.chip{
+  flex:1;min-width:100px;
+  background:var(--dark2);
+  border:1px solid var(--border2);
+  padding:6px 10px;
+  font-size:8px;letter-spacing:2px;
+  text-align:center;color:var(--text2);
+  transition:border-color 0.3s;
+}
+.chip.on{border-color:var(--red);color:var(--red);}
+.chip.ok{border-color:#1a5a1a;color:#44bb44;}
+.chip.warn{border-color:#5a5a00;color:#aaaa00;}
+
+/* ─── SCAN LINE ANIM (horizontal sweep) ─── */
+.scan-sweep{
+  position:absolute;inset:0;
+  background:linear-gradient(180deg,transparent 0%,rgba(0,229,255,0.015) 50%,transparent 100%);
+  height:200%;
+  animation:sweep 4s linear infinite;
+  pointer-events:none;z-index:0;
+}
+@keyframes sweep{from{transform:translateY(-50%);}to{transform:translateY(0%)}}
+
+/* ─── KILL LOG ─── */
+.kill-log{
+  background:var(--dark2);
+  border:1px solid var(--border2);
+  border-left:3px solid var(--green);
+  padding:8px 12px;
+  margin-bottom:12px;
+  max-height:80px;
+  overflow:hidden;
+}
+.kill-entry{
+  font-size:9px;color:var(--text2);letter-spacing:1px;
+  padding:1px 0;
+  animation:logfade 0.3s ease;
+}
+@keyframes logfade{from{opacity:0;transform:translateX(-4px);}to{opacity:1;transform:none;}}
+.kill-entry .kt{color:var(--green);}
+.kill-entry .kn{color:#dde;}
+
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+  <!-- TICKER -->
+  <div class="ticker-outer">
+    <span class="ticker-inner">
+      // ARASAKA NEURAL-LINK ACTIVE &nbsp;·&nbsp; THREAT ANALYSIS ONLINE &nbsp;·&nbsp; OPTICAL IMPLANT v7.2 &nbsp;·&nbsp;
+      TARGETING SYSTEMS NOMINAL &nbsp;·&nbsp; LETHAL FORCE AUTHORIZED &nbsp;·&nbsp; CYBERWARE: FULLY OPERATIONAL &nbsp;·&nbsp;
+      MILITECH ENCRYPTION BYPASSED &nbsp;·&nbsp; ALL HOSTILES TAGGED &nbsp;·&nbsp;
+    </span>
+  </div>
+
+  <!-- HEADER -->
+  <div class="hud-header">
+    <div class="hdr-left">
+      <div class="hdr-micro">operator</div>
+      <div class="hdr-val" style="color:#606080;">ARASAKA CORP</div>
+      <div class="hdr-micro" style="margin-top:4px;">unit id</div>
+      <div class="hdr-val" style="color:var(--orange);font-size:10px;">AS-001 // FULLBORG</div>
+    </div>
+
+    <div class="boss-title-wrap">
+      <div class="boss-name">ADAM SMASHER</div>
+      <div class="boss-sub">FULL CONVERSION BORG &nbsp;//&nbsp; SOLO CLASS</div>
+    </div>
+
+    <div class="hdr-right">
+      <div class="hdr-micro">threat level</div>
+      <div class="hdr-val" style="color:var(--red);">EXTREME</div>
+      <div class="hdr-micro" style="margin-top:4px;">status</div>
+      <div class="hdr-val" style="color:var(--green);font-size:10px;" id="status-txt">COMBAT ACTIVE</div>
+    </div>
+  </div>
+
+  <div class="red-line"></div>
+
+  <!-- HP + RAGE BARS -->
+  <div class="bars-row">
+    <div class="bar-panel hp-panel">
+      <div class="bar-top">
+        <span class="bar-lbl">HULL INTEGRITY</span>
+        <span>
+          <span class="overheal-badge">ARMORED</span>
+          <span class="bar-num hp" id="boss-hp-txt">12,840 / 19,200</span>
+        </span>
+      </div>
+      <div class="bar-track">
+        <div class="bar-fill hp-fill" id="boss-hp-bar" style="width:67%"></div>
+      </div>
+      <div class="bar-note">CHASSIS: MILITARY-GRADE TITANIUM ALLOY</div>
+    </div>
+
+    <div class="bar-panel rage-panel">
+      <div class="bar-top">
+        <span class="bar-lbl" style="color:var(--yellow);">RAGE CHARGE</span>
+        <span class="bar-num rage" id="rage-txt">45%</span>
+      </div>
+      <div class="bar-track">
+        <div class="bar-fill rage-fill" id="rage-bar" style="width:45%"></div>
+      </div>
+      <div class="bar-note" style="color:#5a4400;">ROCKET BARRAGE UNLOCKS AT 100%</div>
+    </div>
+  </div>
+
+  <!-- KILL LOG -->
+  <div class="kill-log" id="kill-log">
+    <div class="kill-entry"><span class="kt">[KILL]</span> &nbsp;<span class="kn">QUICKB01</span> &nbsp;·&nbsp; Scout &nbsp;·&nbsp; Katana</div>
+    <div class="kill-entry"><span class="kt">[KILL]</span> &nbsp;<span class="kn">FIX_IT_L33T</span> &nbsp;·&nbsp; Engineer &nbsp;·&nbsp; Rocket</div>
+    <div class="kill-entry"><span class="kt">[KILL]</span> &nbsp;<span class="kn">BOMBS_AWAY</span> &nbsp;·&nbsp; Demo &nbsp;·&nbsp; Melee</div>
+    <div class="kill-entry"><span class="kt">[KILL]</span> &nbsp;<span class="kn">FALCON_99</span> &nbsp;·&nbsp; Soldier &nbsp;·&nbsp; Rocket</div>
+  </div>
+
+  <!-- TARGET ACQUISITION PANEL -->
+  <div class="framed">
+    <div class="corner tl"></div><div class="corner tr"></div>
+    <div class="corner bl"></div><div class="corner br"></div>
+    <div class="scan-sweep"></div>
+
+    <div class="sec-hdr">
+      <div class="sec-title" style="color:var(--cyan);">TARGET ACQUISITION</div>
+      <div class="sec-line" style="background:linear-gradient(90deg,var(--cyan2),transparent)"></div>
+      <div class="sec-badge" style="background:var(--cyan);" id="locked-badge">6 LOCKED</div>
+    </div>
+
+    <div class="enemy-grid" id="enemy-grid"></div>
+
+    <!-- CLOAKED SPY SECTION -->
+    <div class="sec-hdr" style="margin-top:6px;">
+      <div class="sec-title" style="color:var(--purple);">UNDETECTED SIGNATURES</div>
+      <div class="sec-line" style="background:linear-gradient(90deg,#440066,transparent)"></div>
+      <div class="sec-badge" style="background:var(--purple);" id="cloaked-badge">2 MASKED</div>
+    </div>
+
+    <div class="spy-panel">
+      <div class="spy-hdr">
+        <div class="spy-diamond"></div>
+        <div class="spy-title">STEALTH ENTITIES — THERMAL DATA UNAVAILABLE</div>
+      </div>
+      <div class="spy-grid" id="spy-grid"></div>
+      <div class="spy-note">// AWAITING DECLOAK EVENT — OPTICAL SCAN INSUFFICIENT //</div>
+    </div>
+
+  </div>
+
+  <!-- STATUS CHIPS -->
+  <div class="status-bar">
+    <div class="chip on" id="chip-rage">RAGE: CHARGING</div>
+    <div class="chip ok">TRACKING: ACTIVE</div>
+    <div class="chip warn" id="chip-cloak">CLOAK-SCAN: PARTIAL</div>
+    <div class="chip ok" id="chip-kills">KILLS: 4</div>
+    <div class="chip" id="chip-round">ROUND: ACTIVE</div>
+  </div>
+
+</div><!-- /wrap -->
+
+<script>
+// ──────────────────────────────────────────
+//  ENEMY DATA — edit these to match real values
+// ──────────────────────────────────────────
+const enemies = [
+  { name:"BRUTISH_MAN",  cls:"heavy",    hp:450, maxHp:450, ammo:200, maxAmmo:200, uber:true,  dist:14 },
+  { name:"FALCON_99",    cls:"soldier",  hp:200, maxHp:200, ammo:4,   maxAmmo:4,   uber:false, dist:28 },
+  { name:"QUICKB01",     cls:"scout",    hp:75,  maxHp:125, ammo:6,   maxAmmo:6,   uber:false, dist:9  },
+  { name:"DOC_MEDIK",    cls:"medic",    hp:175, maxHp:150, ammo:40,  maxAmmo:40,  uber:true,  dist:22 },
+  { name:"PIRO_MAN",     cls:"pyro",     hp:100, maxHp:175, ammo:200, maxAmmo:200, uber:false, dist:17 },
+  { name:"HEADSH0T",     cls:"sniper",   hp:125, maxHp:125, ammo:25,  maxAmmo:25,  uber:false, dist:55 },
+];
+
+const cloaked = [
+  { id:"#1", note:"LAST SEEN: FLANK LEFT" },
+  { id:"#2", note:"LAST SEEN: UNKNOWN" },
+];
+
+const clsLabel = {
+  heavy:"HEAVY", soldier:"SOLDIER", scout:"SCOUT",
+  medic:"MEDIC", demo:"DEMOMAN", engineer:"ENGINEER",
+  pyro:"PYRO", sniper:"SNIPER", spy:"SPY"
+};
+
+function threat(e){
+  if(e.uber) return {cls:"uber", txt:"UBERCHARGED"};
+  const pct = e.hp/e.maxHp;
+  if(pct > 0.75) return {cls:"high", txt:"HIGH THREAT"};
+  if(pct > 0.35) return {cls:"mid",  txt:"DAMAGED"};
+  return       {cls:"low",  txt:"CRITICAL"};
+}
+
+function buildCard(e, idx){
+  const hpPct   = Math.min(e.hp/e.maxHp*100,100);
+  const ammoPct = Math.min(e.ammo/e.maxAmmo*100,100);
+  const lowHp   = e.hp < e.maxHp*0.35;
+  const lowAmmo = e.ammo < e.maxAmmo*0.25;
+  const thr     = threat(e);
+
+  const d = document.createElement('div');
+  d.className = `ecard ${e.cls}`;
+  d.style.animationDelay = (idx*0.07)+'s';
+  d.innerHTML = `
+    <div class="ecard-top">
+      <span class="ecls">${clsLabel[e.cls]||e.cls.toUpperCase()}</span>
+      <span class="ename">${e.name}</span>
+      ${e.uber?'<span class="uber-tag">UBER</span>':''}
+      <span class="edot"></span>
+    </div>
+    <div class="stat-row">
+      <span class="slbl">HP</span>
+      <div class="mtrack"><div class="mfill hp" style="width:${hpPct}%"></div></div>
+      <span class="snum ${lowHp?'low':''}">${e.hp}/${e.maxHp}</span>
+    </div>
+    <div class="stat-row">
+      <span class="slbl">AMMO</span>
+      <div class="mtrack"><div class="mfill ammo" style="width:${ammoPct}%"></div></div>
+      <span class="snum ${lowAmmo?'low':''}">${e.ammo}/${e.maxAmmo}</span>
+    </div>
+    <div class="ecard-foot">
+      <span class="edist">⊕ ${e.dist}m</span>
+      <span class="ethreat ${thr.cls}">${thr.txt}</span>
+    </div>
+  `;
+  return d;
+}
+
+function buildSpyChip(s){
+  const d = document.createElement('div');
+  d.className = 'spy-chip';
+  d.textContent = `TARGET ${s.id} — CLOAKED  ·  ${s.note}`;
+  return d;
+}
+
+// Initial render
+const grid   = document.getElementById('enemy-grid');
+const spygrid= document.getElementById('spy-grid');
+enemies.forEach((e,i) => grid.appendChild(buildCard(e,i)));
+cloaked.forEach(s => spygrid.appendChild(buildSpyChip(s)));
+document.getElementById('locked-badge').textContent  = enemies.length+' LOCKED';
+document.getElementById('cloaked-badge').textContent = cloaked.length+' MASKED';
+
+// ──────────────────────────────────────────
+//  LIVE SIMULATION — HP flicker every 1.8s
+// ──────────────────────────────────────────
+let kills = 4;
+const killNames = ["DEMO_K1NG","PROX_MINE","SPOOKY_MED","PYRO_9000","HAWK_EYE"];
+const killWeapons = ["Katana","Rocket","Deflect","Melee","Pistol"];
+
+setInterval(()=>{
+  if(enemies.length === 0) return;
+  const idx = Math.floor(Math.random()*enemies.length);
+  const e = enemies[idx];
+  const dmg = Math.floor(Math.random()*40)+5;
+  e.hp = Math.max(0, e.hp-dmg);
+
+  // Distance drift
+  e.dist = Math.max(5, e.dist + (Math.random()>0.5?1:-1)*Math.floor(Math.random()*4));
+
+  // Respawn if dead
+  if(e.hp <= 0){
+    kills++;
+    document.getElementById('chip-kills').textContent = 'KILLS: '+kills;
+    // add kill log entry
+    const log = document.getElementById('kill-log');
+    const entry = document.createElement('div');
+    entry.className='kill-entry';
+    const weapon = killWeapons[Math.floor(Math.random()*killWeapons.length)];
+    entry.innerHTML=`<span class="kt">[KILL]</span> &nbsp;<span class="kn">${e.name}</span> &nbsp;·&nbsp; ${clsLabel[e.cls]} &nbsp;·&nbsp; ${weapon}`;
+    log.insertBefore(entry, log.firstChild);
+    if(log.children.length > 4) log.removeChild(log.lastChild);
+    e.hp = e.maxHp;
+  }
+
+  // Re-render card
+  const cards = grid.querySelectorAll('.ecard');
+  if(cards[idx]) cards[idx].replaceWith(buildCard(e, idx));
+
+}, 1800);
+
+// Rage bar tick
+let rage = 45;
+setInterval(()=>{
+  rage = Math.min(100, rage + (Math.random()*3));
+  const pct = rage.toFixed(0);
+  document.getElementById('rage-bar').style.width = pct+'%';
+  document.getElementById('rage-txt').textContent = pct+'%';
+  if(rage >= 100){
+    rage = 0;
+    document.getElementById('chip-rage').textContent = 'RAGE: READY!';
+    document.getElementById('chip-rage').style.borderColor='var(--yellow)';
+    document.getElementById('chip-rage').style.color='var(--yellow)';
+    setTimeout(()=>{
+      document.getElementById('chip-rage').textContent = 'RAGE: CHARGING';
+      document.getElementById('chip-rage').style.borderColor='';
+      document.getElementById('chip-rage').style.color='';
+    },3000);
+  }
+}, 800);
+
+// Boss HP tick down slowly for demo
+let bossHp = 12840, bossMax = 19200;
+setInterval(()=>{
+  bossHp = Math.max(0, bossHp - Math.floor(Math.random()*80));
+  if(bossHp < 1000) bossHp = bossMax;
+  const pct = (bossHp/bossMax*100).toFixed(1);
+  document.getElementById('boss-hp-bar').style.width = pct+'%';
+  document.getElementById('boss-hp-txt').textContent =
+    bossHp.toLocaleString()+' / '+bossMax.toLocaleString();
+}, 2500);
+</script>
+</body>
+</html>
